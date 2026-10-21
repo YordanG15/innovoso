@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El Peso Invisible</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<header class="top">
+  <div><div class="marca">EL PESO INVISIBLE</div><div class="sub">Innovación Social · UCSC</div></div>
+</header>
+
+<main>
+  <!-- Sin código de sesión -->
+  <section id="v-codigo" class="card oculto">
+    <h1>Ingresa el código</h1>
+    <p class="muted">Está en el atril, o escanea el QR de nuevo.</p>
+    <input id="in-codigo" type="text" maxlength="6" placeholder="Ej: K7P2" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:.2em;text-align:center;font-weight:700">
+    <button class="btn" id="btn-codigo">Entrar</button>
+    <div class="error" id="err-codigo"></div>
+  </section>
+
+  <!-- Fase 1: escribir -->
+  <section id="v-escribir" class="card oculto">
+    <h1>¿Qué te pesa más que tu mochila hoy?</h1>
+    <p class="muted">Es anónimo. Nadie sabrá quién escribió qué. Escribe una o dos frases.</p>
+
+    <label>Elige lo que más se acerque</label>
+    <div class="chips" id="chips"></div>
+
+    <label for="peso">Mi peso de hoy</label>
+    <textarea id="peso" maxlength="300" placeholder="Escribe con confianza..."></textarea>
+
+    <details style="margin-top:14px">
+      <summary class="muted" style="cursor:pointer">Datos opcionales (para el análisis del proyecto)</summary>
+      <label for="carrera">Área o carrera</label>
+      <input id="carrera" type="text" maxlength="60" placeholder="Ej: Medicina">
+      <label for="anio">Año que cursas</label>
+      <select id="anio">
+        <option value="">Prefiero no decir</option>
+        <option>1°</option><option>2°</option><option>3°</option><option>4°</option><option>5°</option><option>6° o más</option>
+      </select>
+    </details>
+
+    <button class="btn" id="btn-enviar">Soltar mi peso</button>
+    <div class="error" id="err-enviar"></div>
+  </section>
+
+  <!-- Espera / diálogo -->
+  <section id="v-espera" class="card estado oculto">
+    <div class="pulso"></div>
+    <h1 id="espera-titulo">Gracias por soltar tu peso</h1>
+    <p id="espera-texto" class="muted">Mira al facilitador: en un momento se leerán los pesos del grupo en voz alta.</p>
+  </section>
+
+  <section id="v-dialogo" class="card estado oculto">
+    <div class="pulso"></div>
+    <h1>Momento de conversar</h1>
+    <p>Levanta la mirada. Si has vivido algo parecido a lo que escuchas, <b>cuéntale a tu compañero qué te ayudó</b>.</p>
+    <p class="muted">Cuando el facilitador lo indique, aparecerá una pregunta final aquí.</p>
+  </section>
+
+  <!-- Evaluación -->
+  <section id="v-evaluar" class="card oculto">
+    <h1>Una última pausa</h1>
+    <p class="muted">Tus respuestas son anónimas y nos ayudan a medir el impacto.</p>
+
+    <label>Después de conversar, ¿qué tan conectado/a te sentiste con el grupo?</label>
+    <div class="escala" id="esc-conexion"></div>
+    <div class="escala-lbl"><span>Nada</span><span>Muchísimo</span></div>
+
+    <label>¿Cuánto alivio sentiste al ser escuchado/a?</label>
+    <div class="escala" id="esc-alivio"></div>
+    <div class="escala-lbl"><span>Ninguno</span><span>Mucho</span></div>
+
+    <label for="testimonio">En una frase: ¿qué te llevas de esta conversación? (opcional)</label>
+    <textarea id="testimonio" maxlength="500"></textarea>
+
+    <button class="btn" id="btn-eval" disabled>Enviar</button>
+    <div class="error" id="err-eval"></div>
+  </section>
+
+  <section id="v-fin" class="card estado oculto">
+    <h1>Gracias por participar</h1>
+    <p>Lo que cargas es más compartido de lo que parece. 🤍</p>
+  </section>
+</main>
+
+<footer>Experimento social · Asignatura Innovación Social · Universidad Católica de la Santísima Concepción</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  const $ = id => document.getElementById(id);
+  const vistas = ['v-codigo','v-escribir','v-espera','v-dialogo','v-evaluar','v-fin'];
+  const CATEGORIAS = ['Miedo a reprobar','Cansancio mental','Presión académica','Familia','Dinero','Soledad','Futuro / vocación','Otro'];
+
+  let sesion = (new URLSearchParams(location.search).get('s') || '').toUpperCase().trim();
+  let yaEnvio = sessionStorageGet('peso_' + sesion) === '1';
+  let yaEvaluo = sessionStorageGet('eval_' + sesion) === '1';
+  let categoria = '', conexion = 0, alivio = 0, faseActual = null, timer = null;
+
+  function sessionStorageGet(k){ try { return sessionStorage.getItem(k); } catch(e){ return null; } }
+  function sessionStorageSet(k,v){ try { sessionStorage.setItem(k,v); } catch(e){} }
+
+  function mostrar(id) { vistas.forEach(v => $(v).classList.toggle('oculto', v !== id)); }
+
+  // chips
+  CATEGORIAS.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = c; b.setAttribute('aria-pressed','false');
+    b.onclick = () => {
+      categoria = (categoria === c) ? '' : c;
+      document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x.textContent === categoria ? 'true' : 'false'));
+    };
+    $('chips').appendChild(b);
+  });
+
+  // escalas
+  function crearEscala(id, cb) {
+    const cont = $(id);
+    for (let i = 1; i <= 5; i++) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = i; b.setAttribute('aria-pressed','false');
+      b.onclick = () => {
+        cont.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        cb(i); $('btn-eval').disabled = !(conexion && alivio);
+      };
+      cont.appendChild(b);
+    }
+  }
+  crearEscala('esc-conexion', v => conexion = v);
+  crearEscala('esc-alivio', v => alivio = v);
+
+  // ---- sin código
+  if (!sesion) {
+    mostrar('v-codigo');
+    $('btn-codigo').onclick = () => {
+      const c = $('in-codigo').value.toUpperCase().trim();
+      if (c.length < 3) { $('err-codigo').textContent = 'Ingresa un código válido.'; return; }
+      location.search = '?s=' + encodeURIComponent(c);
+    };
+    return;
+  }
+
+  // ---- enviar peso
+  $('btn-enviar').onclick = async () => {
+    const texto = $('peso').value.trim();
+    $('err-enviar').textContent = '';
+    if (texto.length < 2) { $('err-enviar').textContent = 'Escribe al menos una palabra.'; return; }
+    $('btn-enviar').disabled = true;
+    const { error } = await sb.from('pesos').insert({
+      sesion, categoria: categoria || null, peso: texto,
+      carrera: $('carrera').value.trim() || null, anio: $('anio').value || null
+    });
+    if (error) { $('err-enviar').textContent = 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.'; $('btn-enviar').disabled = false; return; }
+    yaEnvio = true; sessionStorageSet('peso_' + sesion, '1');
+    render();
+  };
+
+  // ---- enviar evaluación
+  $('btn-eval').onclick = async () => {
+    $('btn-eval').disabled = true; $('err-eval').textContent = '';
+    const { error } = await sb.from('conexion').insert({
+      sesion, conexion, alivio, testimonio: $('testimonio').value.trim() || null
+    });
+    if (error) { $('err-eval').textContent = 'No se pudo enviar. Intenta de nuevo.'; $('btn-eval').disabled = false; return; }
+    yaEvaluo = true; sessionStorageSet('eval_' + sesion, '1');
+    render();
+  };
+
+  // ---- máquina de estados
+  function render() {
+    const f = faseActual;
+    if (f === 'cerrada') return mostrar('v-fin');
+    if (f === 'evaluar') return yaEvaluo ? mostrar('v-fin') : mostrar('v-evaluar');
+    if (f === 'dialogo') return mostrar('v-dialogo');
+    // fase escribir
+    if (yaEnvio) return mostrar('v-espera');
+    mostrar('v-escribir');
+  }
+
+  async function consultar() {
+    const { data, error } = await sb.from('sesiones').select('fase').eq('codigo', sesion).maybeSingle();
+    if (error) return;
+    if (!data) {
+      mostrar('v-codigo');
+      $('err-codigo').textContent = 'Ese código no existe. Revisa el atril.';
+      $('btn-codigo').onclick = () => { const c = $('in-codigo').value.toUpperCase().trim(); if (c) location.search = '?s=' + encodeURIComponent(c); };
+      return;
+    }
+    if (data.fase !== faseActual) { faseActual = data.fase; render(); }
+  }
+
+  consultar();
+  timer = setInterval(consultar, 2000);
+})();
+</script>
+</body>
+</html>

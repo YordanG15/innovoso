@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del facilitador · El Peso Invisible</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<header class="top">
+  <div><div class="marca">EL PESO INVISIBLE · PANEL</div><div class="sub">Facilitador · Innovación Social UCSC</div></div>
+  <button class="btn sec sm oculto" id="btn-salir">Salir</button>
+</header>
+
+<main class="ancho">
+  <!-- PIN -->
+  <section id="v-pin" class="card" style="max-width:380px;margin:40px auto">
+    <h1>Panel del facilitador</h1>
+    <label for="pin">PIN</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+    <button class="btn" id="btn-pin">Entrar</button>
+    <div class="error" id="err-pin"></div>
+  </section>
+
+  <div id="v-panel" class="oculto">
+    <div class="grid">
+      <!-- Columna izquierda -->
+      <div>
+        <div class="card">
+          <h2>Sesión (grupo de 6)</h2>
+          <div class="fila">
+            <select id="sel-sesion" style="flex:1"></select>
+            <button class="btn sm" id="btn-nueva">+ Nueva</button>
+          </div>
+        </div>
+
+        <div class="card" id="c-sesion">
+          <div class="codigo" id="codigo">----</div>
+          <div class="qrbox"><div id="qr"></div></div>
+          <p class="muted" style="text-align:center;word-break:break-all" id="url"></p>
+          <button class="btn sec sm" id="btn-copiar" style="width:100%">Copiar enlace</button>
+        </div>
+
+        <div class="card">
+          <h2>Fase de la dinámica</h2>
+          <div class="fases" id="fases">
+            <button data-f="escribir">1 · Escribir</button>
+            <button data-f="dialogo">2 · Diálogo</button>
+            <button data-f="evaluar">3 · Evaluar</button>
+            <button data-f="cerrada">4 · Cerrar</button>
+          </div>
+          <p class="muted" style="margin-top:12px">Los celulares cambian de pantalla solos cuando cambias la fase.</p>
+        </div>
+
+        <div class="card">
+          <h2>Total del proyecto</h2>
+          <div class="kpis">
+            <div class="kpi"><b id="t-part">0</b><span>Participantes</span></div>
+            <div class="kpi"><b id="t-con">–</b><span>Conexión</span></div>
+            <div class="kpi"><b id="t-ali">–</b><span>Alivio</span></div>
+          </div>
+          <p class="muted" style="margin-top:10px">Meta de la pauta: mínimo 25 participantes.</p>
+          <div class="barra"><div class="rel"><i id="t-meta" style="width:0%"></i></div></div>
+          <button class="btn sec sm" id="btn-csv" style="width:100%;margin-top:10px">Descargar CSV (todo)</button>
+        </div>
+      </div>
+
+      <!-- Columna derecha -->
+      <div>
+        <div class="card">
+          <div class="fila" style="justify-content:space-between">
+            <h2 style="margin:0">Pesos del grupo <span id="n-pesos" class="muted"></span></h2>
+            <label style="margin:0;font-weight:600;font-size:13px"><input type="checkbox" id="chk-grande"> Modo pantalla grande</label>
+          </div>
+          <div id="patron" style="margin:14px 0"></div>
+          <div class="lista" id="lista"><p class="muted">Aún no hay respuestas.</p></div>
+        </div>
+
+        <div class="card">
+          <h2>Evaluación de este grupo</h2>
+          <div class="kpis">
+            <div class="kpi"><b id="e-n">0</b><span>Respuestas</span></div>
+            <div class="kpi"><b id="e-con">–</b><span>Conexión (1-5)</span></div>
+            <div class="kpi"><b id="e-ali">–</b><span>Alivio (1-5)</span></div>
+          </div>
+          <div id="testimonios" style="margin-top:14px"></div>
+        </div>
+
+        <div class="card">
+          <h2>Guion rápido del facilitador</h2>
+          <ol class="muted" style="padding-left:18px;margin:0">
+            <li>Reúne a 6 personas y pide que escaneen el QR. Fase <b>Escribir</b>.</li>
+            <li>Cuando lleguen las 6, lee los patrones en voz alta, sin nombres.</li>
+            <li>Pasa a <b>Diálogo</b>: “¿Quién ha vivido algo así? ¿Qué le diría a su compañero?”.</li>
+            <li>Pasa a <b>Evaluar</b> y pídeles responder en su celular.</li>
+            <li>Cierra con <b>Cerrar</b> y registra tus observaciones en el blog.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  const $ = id => document.getElementById(id);
+  const ALFA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let actual = null, qr = null, timer = null;
+
+  // ---- PIN
+  function entrar() { $('v-pin').classList.add('oculto'); $('v-panel').classList.remove('oculto'); $('btn-salir').classList.remove('oculto'); iniciar(); }
+  try { if (sessionStorage.getItem('pin_ok') === '1') entrar(); } catch(e){}
+  $('btn-pin').onclick = () => {
+    if ($('pin').value === CONFIG.PIN_FACILITADOR) { try { sessionStorage.setItem('pin_ok','1'); } catch(e){} entrar(); }
+    else $('err-pin').textContent = 'PIN incorrecto.';
+  };
+  $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-pin').click(); });
+  $('btn-salir').onclick = () => { try { sessionStorage.removeItem('pin_ok'); } catch(e){} location.reload(); };
+
+  function codigoAleatorio() { let s=''; for (let i=0;i<4;i++) s += ALFA[Math.floor(Math.random()*ALFA.length)]; return s; }
+
+  async function iniciar() {
+    await cargarSesiones();
+    $('btn-nueva').onclick = nuevaSesion;
+    $('sel-sesion').onchange = e => elegir(e.target.value);
+    document.querySelectorAll('#fases button').forEach(b => b.onclick = () => cambiarFase(b.dataset.f));
+    $('btn-copiar').onclick = async () => { try { await navigator.clipboard.writeText($('url').textContent); $('btn-copiar').textContent = '¡Copiado!'; setTimeout(()=>$('btn-copiar').textContent='Copiar enlace',1500); } catch(e){} };
+    $('chk-grande').onchange = e => document.body.classList.toggle('pantalla-grande', e.target.checked);
+    $('btn-csv').onclick = descargarCSV;
+    timer = setInterval(refrescar, 2000);
+  }
+
+  async function cargarSesiones(seleccionar) {
+    const { data } = await sb.from('sesiones').select('codigo,fase,actualizado').order('actualizado', { ascending: false });
+    const sel = $('sel-sesion'); sel.innerHTML = '';
+    (data || []).forEach(s => { const o = document.createElement('option'); o.value = s.codigo; o.textContent = 'Grupo ' + s.codigo; sel.appendChild(o); });
+    if (!data || !data.length) { await nuevaSesion(); return; }
+    elegir(seleccionar || actual || data[0].codigo);
+  }
+
+  async function nuevaSesion() {
+    let cod = codigoAleatorio();
+    const { error } = await sb.from('sesiones').insert({ codigo: cod, fase: 'escribir' });
+    if (error) { alert('No se pudo crear la sesión. Revisa config.js y que ejecutaste setup.sql.'); return; }
+    await cargarSesiones(cod);
+  }
+
+  function elegir(cod) {
+    actual = cod; $('sel-sesion').value = cod; $('codigo').textContent = cod;
+    const base = location.href.replace(/panel\.html.*$/, '').replace(/[^/]*$/, (m) => m);
+    const url = location.origin + location.pathname.replace(/panel\.html$/, 'index.html') + '?s=' + cod;
+    $('url').textContent = url;
+    $('qr').innerHTML = '';
+    qr = new QRCode($('qr'), { text: url, width: 200, height: 200, colorDark: '#646567', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    refrescar();
+  }
+
+  async function cambiarFase(f) {
+    if (!actual) return;
+    await sb.from('sesiones').update({ fase: f, actualizado: new Date().toISOString() }).eq('codigo', actual);
+    refrescar();
+  }
+
+  function prom(a, k) { return a.length ? (a.reduce((s, x) => s + x[k], 0) / a.length).toFixed(1) : '–'; }
+
+  async function refrescar() {
+    if (!actual) return;
+    const [ses, pesos, con, todosP, todosC] = await Promise.all([
+      sb.from('sesiones').select('fase').eq('codigo', actual).maybeSingle(),
+      sb.from('pesos').select('*').eq('sesion', actual).order('creado'),
+      sb.from('conexion').select('*').eq('sesion', actual).order('creado'),
+      sb.from('pesos').select('id'),
+      sb.from('conexion').select('conexion,alivio')
+    ]);
+
+    document.querySelectorAll('#fases button').forEach(b => b.classList.toggle('act', ses.data && b.dataset.f === ses.data.fase));
+
+    // pesos
+    const P = pesos.data || [];
+    $('n-pesos').textContent = '(' + P.length + ')';
+    const lista = $('lista'); lista.innerHTML = '';
+    if (!P.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Aún no hay respuestas.'; lista.appendChild(p); }
+    P.forEach(x => {
+      const d = document.createElement('div'); d.className = 'peso-item';
+      const c = document.createElement('div'); c.className = 'cat'; c.textContent = x.categoria || 'Sin categoría';
+      const t = document.createElement('div'); t.className = 'txt'; t.textContent = x.peso;
+      d.appendChild(c); d.appendChild(t); lista.appendChild(d);
+    });
+
+    // patrones
+    const cnt = {}; P.forEach(x => { const k = x.categoria || 'Sin categoría'; cnt[k] = (cnt[k] || 0) + 1; });
+    const pat = $('patron'); pat.innerHTML = '';
+    const max = Math.max(1, ...Object.values(cnt));
+    Object.entries(cnt).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => {
+      const r = document.createElement('div'); r.className = 'barra';
+      const n = document.createElement('div'); n.className = 'nom'; n.textContent = k;
+      const rel = document.createElement('div'); rel.className = 'rel'; const i = document.createElement('i'); i.style.width = (v/max*100)+'%'; rel.appendChild(i);
+      const num = document.createElement('b'); num.textContent = v;
+      r.appendChild(n); r.appendChild(rel); r.appendChild(num); pat.appendChild(r);
+    });
+
+    // evaluación del grupo
+    const C = con.data || [];
+    $('e-n').textContent = C.length; $('e-con').textContent = prom(C,'conexion'); $('e-ali').textContent = prom(C,'alivio');
+    const tw = $('testimonios'); tw.innerHTML = '';
+    C.filter(x => x.testimonio).forEach(x => {
+      const d = document.createElement('div'); d.className = 'peso-item'; d.style.marginBottom = '8px';
+      const t = document.createElement('div'); t.className = 'txt'; t.style.fontSize = '15px'; t.textContent = '“' + x.testimonio + '”';
+      d.appendChild(t); tw.appendChild(d);
+    });
+
+    // totales
+    const nP = (todosP.data || []).length, TC = todosC.data || [];
+    $('t-part').textContent = nP; $('t-con').textContent = prom(TC,'conexion'); $('t-ali').textContent = prom(TC,'alivio');
+    $('t-meta').style.width = Math.min(100, nP / 25 * 100) + '%';
+  }
+
+  function csvCell(v) { v = (v == null) ? '' : String(v).replace(/"/g, '""'); return '"' + v + '"'; }
+  async function descargarCSV() {
+    const [p, c] = await Promise.all([ sb.from('pesos').select('*').order('creado'), sb.from('conexion').select('*').order('creado') ]);
+    let out = '﻿TABLA,sesion,categoria,peso,carrera,anio,conexion,alivio,testimonio,fecha\n';
+    (p.data || []).forEach(x => out += ['peso', x.sesion, x.categoria, x.peso, x.carrera, x.anio, '', '', '', x.creado].map(csvCell).join(',') + '\n');
+    (c.data || []).forEach(x => out += ['evaluacion', x.sesion, '', '', '', '', x.conexion, x.alivio, x.testimonio, x.creado].map(csvCell).join(',') + '\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([out], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'peso_invisible_datos.csv'; a.click();
+  }
+})();
+</script>
+</body>
+</html>
